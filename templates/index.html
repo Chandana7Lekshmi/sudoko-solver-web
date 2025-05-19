@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sudoku Solver</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+  <div class="container">
+    <h1>Sudoku Solver</h1>
+
+    <div class="board-wrapper">
+      <table id="sudoku-board">
+        <tbody>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="button-group">
+      <button id="solve-btn">Solve Puzzle</button>
+      <button id="reset-btn">Reset</button>
+    </div>
+    
+    <p id="message"></p>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const tableBody = document.querySelector('#sudoku-board tbody');
+      const solveBtn = document.getElementById('solve-btn');
+      const resetBtn = document.getElementById('reset-btn');
+      const messageElem = document.getElementById('message');
+      
+      // Generate the 9x9 grid
+      for (let i = 0; i < 9; i++) {
+        const row = document.createElement('tr');
+        for (let j = 0; j < 9; j++) {
+          const cell = document.createElement('td');
+          const input = document.createElement('input');
+          input.type = 'text';
+          input.maxLength = 1;
+          input.className = 'cell';
+          input.dataset.row = i;
+          input.dataset.col = j;
+          
+          // Only allow numbers 1-9
+          input.addEventListener('input', function(e) {
+            this.value = this.value.replace(/[^1-9]/g, '');
+          });
+          
+          // Mark original values
+          input.addEventListener('blur', function() {
+            if (this.value) {
+              this.classList.add('original-value');
+            } else {
+              this.classList.remove('original-value');
+            }
+          });
+          
+          cell.appendChild(input);
+          row.appendChild(cell);
+        }
+        tableBody.appendChild(row);
+      }
+      
+      // Solve button functionality
+      solveBtn.addEventListener('click', async () => {
+        const cells = document.querySelectorAll('.cell');
+        let board = Array(9).fill().map(() => Array(9).fill(0));
+
+        cells.forEach(cell => {
+          let val = cell.value;
+          let row = parseInt(cell.dataset.row);
+          let col = parseInt(cell.dataset.col);
+          board[row][col] = val === '' ? 0 : parseInt(val);
+        });
+
+        try {
+          const response = await fetch('/solve', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ board }),
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            const solution = data.solution;
+
+            // Update cells with solution
+            cells.forEach(cell => {
+              const row = parseInt(cell.dataset.row);
+              const col = parseInt(cell.dataset.col);
+              
+              // Only update empty cells
+              if (!cell.classList.contains('original-value')) {
+                cell.value = solution[row][col];
+              }
+            });
+            
+            messageElem.textContent = "Puzzle solved successfully!";
+            messageElem.className = "status-success";
+          } else {
+            const err = await response.json();
+            messageElem.textContent = err.error || "Unable to solve the puzzle. Please check your inputs.";
+            messageElem.className = "status-error";
+          }
+        } catch (error) {
+          messageElem.textContent = "There was an error connecting to the server.";
+          messageElem.className = "status-error";
+        }
+      });
+      
+      // Reset button functionality
+      resetBtn.addEventListener('click', () => {
+        const cells = document.querySelectorAll('.cell');
+        cells.forEach(cell => {
+          cell.value = '';
+          cell.classList.remove('original-value');
+        });
+        messageElem.textContent = '';
+        messageElem.className = '';
+      });
+      
+      // Make tab navigation work sequentially through the grid
+      const inputs = document.querySelectorAll('.cell');
+      inputs.forEach((input, index) => {
+        input.addEventListener('keydown', function(e) {
+          if (e.key === 'Tab') {
+            if (index === inputs.length - 1 && !e.shiftKey) {
+              // Focus on solve button after last cell
+              e.preventDefault();
+              solveBtn.focus();
+            }
+          }
+        });
+      });
+    });
+  </script>
+</body>
+</html>
